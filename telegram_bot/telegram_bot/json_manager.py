@@ -337,14 +337,21 @@ class JSONManager:
         
         # Если colors нет, создаем дефолтные
         if "colors" not in data["design"]:
-            data["design"]["colors"] = {
-                "primary": "#3b82f6",
-                "secondary": "#10b981",
-                "accent": "#f59e0b",
-                "background": "#ffffff",
-                "text": "#1f2937",
-                "custom": []
-            }
+            data["design"]["colors"] = {}
+        
+        # Заполняем дефолтными значениями, если они пустые
+        default_colors = {
+            "primary": "#3b82f6",
+            "secondary": "#10b981",
+            "accent": "#f59e0b",
+            "background": "#ffffff",
+            "text": "#1f2937",
+            "custom": []
+        }
+        
+        for key, default_value in default_colors.items():
+            if key not in data["design"]["colors"] or not data["design"]["colors"][key]:
+                data["design"]["colors"][key] = default_value
         
         # Если fonts нет, создаем дефолтные
         if "fonts" not in data["design"]:
