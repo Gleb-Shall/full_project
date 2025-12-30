@@ -95,7 +95,12 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
-            IMAGE_NAME_LOWER="${{ env.REGISTRY }}/$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')"
+            REGISTRY="ghcr.io"
+            IMAGE_NAME="${{ github.repository }}"
+            IMAGE_NAME_LOWER="${REGISTRY}/$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')"
+            
+            # Создаем Docker сеть (если её нет)
+            docker network create automatorio-network 2>/dev/null || true
             
             # Создаем необходимые директории
             mkdir -p /root/deploy_api/containers
@@ -234,9 +239,6 @@ jobs:
               -e RUN_ON_SERVER=1 \
               -e USE_HTTPS=1 \
               ${IMAGE_NAME_LOWER}/deploy_api:${IMAGE_TAG}
-            
-            # Создаем сеть, если её нет
-            docker network create automatorio-network 2>/dev/null || true
             
             # Очистка старых образов
             docker image prune -f
