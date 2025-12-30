@@ -56,7 +56,16 @@ async def send_to_deploy_api(files_data: Dict[str, Any], telegram_id: str) -> Op
     Returns:
         URL задеплоенного сайта или None при ошибке
     """
+    # Используем внутренний Docker URL, если доступен (контейнеры в одной сети)
+    # Проверяем, можем ли мы использовать внутренний URL
     deploy_api_url = os.getenv('DEPLOY_API_URL', 'http://deploy-api:8000')
+    
+    # Если URL внешний (https://), но мы в Docker сети, используем внутренний URL
+    if deploy_api_url.startswith('https://'):
+        # Пробуем использовать внутренний Docker URL
+        internal_url = 'http://deploy-api:8000'
+        deploy_api_url = internal_url
+    
     # Если URL уже содержит /deploy, не добавляем его снова
     if deploy_api_url.endswith('/deploy'):
         endpoint = deploy_api_url
