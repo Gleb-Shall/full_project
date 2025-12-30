@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         working-directory: deploy_api
         run: |
-          python -m pip --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install flake8 pylint
 
@@ -50,7 +50,7 @@ jobs:
       - name: Install dependencies
         working-directory: deploy_api
         run: |
-          python -m pip --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Test imports
@@ -73,7 +73,7 @@ jobs:
       - name: Install dependencies
         working-directory: telegram_bot/telegram_bot
         run: |
-          python -m pip --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Test imports
@@ -96,7 +96,7 @@ jobs:
       - name: Install dependencies
         working-directory: site_generator
         run: |
-          python -m pip --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Test imports
