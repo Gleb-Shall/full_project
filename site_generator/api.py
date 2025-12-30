@@ -57,7 +57,11 @@ async def send_to_deploy_api(files_data: Dict[str, Any], telegram_id: str) -> Op
         URL задеплоенного сайта или None при ошибке
     """
     deploy_api_url = os.getenv('DEPLOY_API_URL', 'http://deploy-api:8000')
-    endpoint = f"{deploy_api_url}/deploy"
+    # Если URL уже содержит /deploy, не добавляем его снова
+    if deploy_api_url.endswith('/deploy'):
+        endpoint = deploy_api_url
+    else:
+        endpoint = f"{deploy_api_url}/deploy"
     
     try:
         # Формируем данные для отправки
