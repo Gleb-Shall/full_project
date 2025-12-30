@@ -184,7 +184,8 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "generate": "/generator",
-            "health": "/health"
+            "health": "/health",
+            "docs": "/docs"
         }
     }
 

@@ -311,7 +311,7 @@ class JSONManager:
         self._save_user_json(user_id, data)
     
     def finalize_json(self, user_id: int):
-        """Финальное обновление JSON перед отправкой"""
+        """Финальное обновление JSON перед отправкой и преобразование в формат генератора"""
         data = self.get_user_json(user_id)
         
         # Обновляем timeline
@@ -320,11 +320,114 @@ class JSONManager:
         data["timeline"]["status"] = "ready"
         data["timeline"]["generated_at"] = datetime.now().isoformat()
         
-        # Обновляем copyright в generated_structure, если он существует
+        # Преобразуем структуру бота в структуру генератора
+        # Создаем поле design, если его нет
+        if "design" not in data:
+            data["design"] = {}
+        
+        # Заполняем design из generated_design или design_wishes
+        if "generated_design" in data:
+            gen_design = data["generated_design"]
+            if "style" in gen_design and gen_design["style"]:
+                data["design"]["style"] = gen_design["style"]
+            if "colors" in gen_design:
+                data["design"]["colors"] = gen_design["colors"]
+            if "fonts" in gen_design:
+                data["design"]["fonts"] = gen_design["fonts"]
+        
+        # Если colors нет, создаем дефолтные
+        if "colors" not in data["design"]:
+            data["design"]["colors"] = {
+                "primary": "#3b82f6",
+                "secondary": "#10b981",
+                "accent": "#f59e0b",
+                "background": "#ffffff",
+                "text": "#1f2937",
+                "custom": []
+            }
+        
+        # Если fonts нет, создаем дефолтные
+        if "fonts" not in data["design"]:
+            data["design"]["fonts"] = {
+                "heading": "Inter",
+                "body": "Inter",
+                "sizes": {
+                    "h1": "3rem",
+                    "h2": "2.5rem",
+                    "h3": "2rem",
+                    "body": "1rem"
+                }
+            }
+        
+        # Создаем images в design, если его нет
+        if "images" not in data["design"]:
+            data["design"]["images"] = {
+                "hero": {"url": "", "alt": "", "position": "center"},
+                "features": [],
+                "about": {"url": "", "alt": ""},
+                "gallery": [],
+                "logo": {"url": "", "width": "200px"}
+            }
+        
+        # Копируем logo из images если есть
+        if "images" in data and "logo" in data["images"]:
+            logo = data["images"]["logo"]
+            if logo.get("url"):
+                data["design"]["images"]["logo"]["url"] = logo["url"]
+            if logo.get("width"):
+                data["design"]["images"]["logo"]["width"] = logo["width"]
+        
+        # Создаем content, если его нет
+        if "content" not in data:
+            data["content"] = {
+                "language": "ru",
+                "hero": {"headline": "", "subheadline": "", "cta_text": "Связаться", "cta_url": "#contacts"},
+                "sections": [],
+                "features": [],
+                "services": [],
+                "testimonials": [],
+                "contacts": {}
+            }
+        
+        # Заполняем content из generated_content
+        if "generated_content" in data:
+            gen_content = data["generated_content"]
+            if "hero" in gen_content:
+                data["content"]["hero"].update(gen_content["hero"])
+            if "sections" in gen_content:
+                data["content"]["sections"] = gen_content["sections"]
+        
+        # Создаем structure, если его нет
+        if "structure" not in data:
+            data["structure"] = {
+                "pages": [{"path": "index", "title": "Главная", "sections": []}],
+                "navigation": [{"title": "Главная", "url": "/", "visible": True}],
+                "footer": {"links": [], "social": {}, "copyright": ""}
+            }
+        
+        # Заполняем structure из generated_structure
+        if "generated_structure" in data:
+            gen_struct = data["generated_structure"]
+            if "sections" in gen_struct:
+                data["structure"]["pages"][0]["sections"] = gen_struct["sections"]
+            if "navigation" in gen_struct:
+                data["structure"]["navigation"] = gen_struct["navigation"]
+            if "footer" in gen_struct:
+                data["structure"]["footer"].update(gen_struct["footer"])
+        
+        # Обновляем copyright в structure.footer
         business_name = data.get("project", {}).get("business", {}).get("name", "Компания")
-        if "generated_structure" in data and "footer" in data["generated_structure"]:
-            if isinstance(data["generated_structure"]["footer"], dict):
-                data["generated_structure"]["footer"]["copyright"] = f"© {datetime.now().year} {business_name}"
+        if "footer" in data["structure"] and isinstance(data["structure"]["footer"], dict):
+            data["structure"]["footer"]["copyright"] = f"© {datetime.now().year} {business_name}"
+        
+        # Создаем technical, если его нет
+        if "technical" not in data:
+            data["technical"] = {
+                "domain": "",
+                "seo": {"title": "", "description": "", "keywords": [], "opengraph": {}},
+                "analytics": {},
+                "features": {"forms": False, "animations": "subtle", "responsive": True, "pwa": False}
+            }
         
         self._save_user_json(user_id, data)
 
