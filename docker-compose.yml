@@ -1,0 +1,77 @@
+version: '3.8'
+
+# Общий docker-compose для всех трех модулей на сервере
+# Используется для управления всеми сервисами вместе
+
+services:
+  # Telegram Bot - чат-бот для сбора информации
+  telegram-bot:
+    image: ghcr.io/${GITHUB_REPOSITORY,,}/telegram_bot:latest
+    container_name: automatorio-telegram-bot
+    restart: unless-stopped
+    # Переменные окружения из GitHub Secrets
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - SITE_GENERATOR_API_URL=${SITE_GENERATOR_API_URL:-http://site-generator:3000/api/submit}
+    volumes:
+      - telegram_bot_data:/app/user_data
+      - telegram_bot_chat:/app/chat
+    networks:
+      - automatorio-network
+    # Telegram бот не требует внешних портов (работает через polling/webhook)
+
+  # Site Generator - генератор сайтов
+  site-generator:
+    image: ghcr.io/${GITHUB_REPOSITORY,,}/site_generator:latest
+    container_name: site-generator
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    # Переменные окружения из GitHub Secrets
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - DEPLOY_API_URL=${DEPLOY_API_URL:-http://deploy-api:8000}
+      - PORT=3000
+    networks:
+      - automatorio-network
+
+  # Deploy API - API для деплоя сайтов
+  deploy-api:
+    image: ghcr.io/${GITHUB_REPOSITORY,,}/deploy_api:latest
+    container_name: deploy-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    # Переменные окружения из GitHub Secrets
+    environment:
+      - DOMAIN=${DOMAIN}
+      - SSH_HOST=${SSH_HOST}
+      - SSH_USER=${SSH_USER}
+      - RUN_ON_SERVER=1
+      - USE_HTTPS=1
+    volumes:
+      # Монтируем Docker socket для создания контейнеров сайтов
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Директория для временных проектов
+      - deploy_containers:/app/containers
+      # Nginx конфигурации (для автоматической настройки маршрутизации)
+      - /etc/nginx:/etc/nginx
+    networks:
+      - automatorio-network
+
+volumes:
+  telegram_bot_data:
+    driver: local
+  telegram_bot_chat:
+    driver: local
+  deploy_containers:
+    driver: local
+
+networks:
+  automatorio-network:
+    driver: bridge
+    # Все модули в одной сети могут общаться по именам контейнеров:
+    # - site-generator:3000
+    # - deploy-api:8000
+

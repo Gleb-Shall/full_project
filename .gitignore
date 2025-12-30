@@ -1,0 +1,72 @@
+# Игнорируем .git директории в подпапках (клонированных репозиториях)
+# Это не проблема для Docker build, так как мы указываем правильный build context
+telegram_bot/.git/
+site_generator/.git/
+deploy_api/.git/
+
+# SSH ключи (не коммитим!)
+**/ssh/
+**/ssh_keys/
+**/keys_for_servers/
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+*.pub
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg
+
+# Виртуальные окружения
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Логи
+*.log
+
+# Docker
+*.tar.gz
+containers/
+
+# Переменные окружения
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Данные пользователей и временные файлы (не коммитим)
+telegram_bot/telegram_bot/user_data/
+telegram_bot/chat/
+deploy_api/containers/
+

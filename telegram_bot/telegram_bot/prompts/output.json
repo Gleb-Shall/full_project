@@ -1,0 +1,174 @@
+
+{
+  "project": {
+    "client": {
+      "name": "",
+      "phone": "",
+      "email": "",
+      "telegram id": "",
+      "telegram username": "",
+      "preferred_contact": "telegram|phone|email"
+    },
+    "business": {
+      "name": "",
+      "type": "лендинг|портфолио|визитка|переходник на соцсети",
+      "industry": "услуги|товары|образование|недвижимость|авто|медицина|другое",
+      "location": "",
+      "goal": "привлечь клиентов|показать портфолио|представить компанию|рассказать о себе"
+    }
+  },
+  "design": {
+    "style": "минимализм|современный|классический|яркий|темный|светлый|корпоративный",
+    "colors": {
+      "primary": "#3b82f6",
+      "secondary": "#10b981",
+      "accent": "#f59e0b",
+      "background": "#ffffff",
+      "text": "#1f2937",
+      "custom": []
+    },
+    "fonts": {
+      "heading": "Inter|Roboto|Montserrat|Playfair Display",
+      "body": "Inter|Open Sans|Roboto",
+      "sizes": {
+        "h1": "3rem",
+        "h2": "2.5rem",
+        "h3": "2rem",
+        "body": "1rem"
+      }
+    },
+    "images": {
+      "hero": {
+        "url": "",
+        "alt": "",
+        "position": "center|left|right"
+      },
+      "features": [],
+      "about": {
+        "url": "",
+        "alt": ""
+      },
+      "gallery": [],
+      "logo": {
+        "url": "",
+        "width": "200px"
+      }
+    }
+  },
+  "content": {
+    "language": "ru|en",
+    "hero": {
+      "headline": "",
+      "subheadline": "",
+      "cta_text": "Связаться|Узнать больше|Заказать|Получить консультацию",
+      "cta_url": "#contacts"
+    },
+    "sections": [
+      {
+        "type": "features|about|services|portfolio|testimonials|contacts",
+        "title": "",
+        "items": [],
+        "visible": true
+      }
+    ],
+    "features": [
+      {
+        "icon": "🚀",
+        "title": "",
+        "description": ""
+      }
+    ],
+    "services": [
+      {
+        "title": "",
+        "price": "",
+        "description": ""
+      }
+    ],
+    "testimonials": [
+      {
+        "text": "",
+        "author": "",
+        "company": ""
+      }
+    ],
+    "contacts": {
+      "phone": "",
+      "email": "",
+      "telegram": "",
+      "address": "",
+      "work_hours": "",
+      "map_embed": ""
+    }
+  },
+  "structure": {
+    "pages": [
+      {
+        "path": "index|about|services|portfolio|contacts",
+        "title": "",
+        "sections": []
+      }
+    ],
+    "navigation": [
+      {
+        "title": "Главная",
+        "url": "/",
+        "visible": true
+      }
+    ],
+    "footer": {
+      "links": [],
+      "social": {
+        "telegram": "",
+        "whatsapp": "",
+        "vk": "",
+        "instagram": ""
+      },
+      "copyright": "© 2025 Название компании"
+    }
+  },
+  "technical": {
+    "domain": "",
+    "seo": {
+      "title": "",
+      "description": "",
+      "keywords": [],
+      "opengraph": {
+        "image": "",
+        "title": "",
+        "description": ""
+      }
+    },
+    "analytics": {
+      "google_analytics": "",
+      "yandex_metrika": ""
+    },
+    "features": {
+      "forms": false,
+      "animations": "none|subtle|active",
+      "responsive": true,
+      "pwa": false
+    }
+  },
+  "files": {
+    "base_astro_template": {
+      "content": ""
+    },
+    "package_json": {
+      "content": {}
+    },
+    "data_yaml": {
+      "content": ""
+    }
+  },
+  "timeline": {
+    "status": "draft|ready|deployed",
+    "generated_at": "",
+    "deployed_at": "",
+    "notes": ""
+  },
+  "images": {
+    "imagename1": "",
+    "imagename2": ""
+  }
+}

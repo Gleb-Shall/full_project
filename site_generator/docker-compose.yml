@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  site-generator:
+    build: .
+    container_name: site-generator
+    ports:
+      - "3000:3000"
+    # Переменные окружения берутся из GitHub Secrets через GitHub Actions
+    # Для локальной разработки можно использовать .env файл (опционально)
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - DEPLOY_API_URL=${DEPLOY_API_URL}
+      - PORT=3000
+    restart: unless-stopped
+    networks:
+      - automatorio-network
+
+networks:
+  automatorio-network:
+    driver: bridge
+

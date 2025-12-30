@@ -1,0 +1,20 @@
+services:
+  telegram-bot:
+    build: .
+    container_name: automatorio-telegram-bot
+    restart: unless-stopped
+    # Переменные окружения берутся из GitHub Secrets через GitHub Actions
+    # Для локальной разработки можно использовать .env файл (опционально)
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - SITE_GENERATOR_API_URL=${SITE_GENERATOR_API_URL}
+    volumes:
+      - ../chat:/app/chat
+      - ./user_data:/app/user_data
+    networks:
+      - automatorio-network
+
+networks:
+  automatorio-network:
+    driver: bridge

@@ -1,0 +1,250 @@
+name: Build and Deploy All Modules
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        module:
+          - name: telegram_bot
+            path: telegram_bot/telegram_bot
+            dockerfile: telegram_bot/telegram_bot/Dockerfile
+          - name: site_generator
+            path: site_generator
+            dockerfile: site_generator/Dockerfile
+          - name: deploy_api
+            path: deploy_api
+            dockerfile: deploy_api/Dockerfile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Важно: загружаем все подпапки, включая их .git директории
+          # Это не проблема, так как мы указываем правильный build context
+          submodules: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set lowercase image name
+        id: image_name
+        run: |
+          IMAGE_NAME_LOWER=$(echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${IMAGE_NAME_LOWER}" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image_name.outputs.IMAGE_NAME_LOWER }}/${{ matrix.module.name }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          # Build context указывает на подпапку модуля
+          context: ${{ matrix.module.path }}
+          # Dockerfile находится в той же подпапке
+          file: ${{ matrix.module.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            IMAGE_NAME_LOWER="${{ env.REGISTRY }}/$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')"
+            
+            # Создаем необходимые директории
+            mkdir -p /root/deploy_api/containers
+            mkdir -p /etc/nginx/sites-available/deploy
+            
+            # Настройка автоматической перезагрузки nginx (если еще не настроена)
+            if [ ! -f /etc/systemd/system/nginx-reload.path ]; then
+              echo "Setting up automatic nginx reload..."
+              echo "[Unit]" > /etc/systemd/system/nginx-reload.service
+              echo "Description=Reload nginx when deploy configs change" >> /etc/systemd/system/nginx-reload.service
+              echo "After=nginx.service" >> /etc/systemd/system/nginx-reload.service
+              echo "Requires=nginx.service" >> /etc/systemd/system/nginx-reload.service
+              echo "" >> /etc/systemd/system/nginx-reload.service
+              echo "[Service]" >> /etc/systemd/system/nginx-reload.service
+              echo "Type=oneshot" >> /etc/systemd/system/nginx-reload.service
+              echo "ExecStart=/bin/systemctl reload nginx" >> /etc/systemd/system/nginx-reload.service
+              echo "User=root" >> /etc/systemd/system/nginx-reload.service
+              echo "[Unit]" > /etc/systemd/system/nginx-reload.path
+              echo "Description=Watch for nginx deploy config changes" >> /etc/systemd/system/nginx-reload.path
+              echo "Documentation=man:systemd.path(5)" >> /etc/systemd/system/nginx-reload.path
+              echo "" >> /etc/systemd/system/nginx-reload.path
+              echo "[Path]" >> /etc/systemd/system/nginx-reload.path
+              echo "PathChanged=/etc/nginx/sites-available/deploy/" >> /etc/systemd/system/nginx-reload.path
+              echo "PathModified=/etc/nginx/sites-available/deploy/" >> /etc/systemd/system/nginx-reload.path
+              echo "Unit=nginx-reload.service" >> /etc/systemd/system/nginx-reload.path
+              echo "" >> /etc/systemd/system/nginx-reload.path
+              echo "[Install]" >> /etc/systemd/system/nginx-reload.path
+              echo "WantedBy=multi-user.target" >> /etc/systemd/system/nginx-reload.path
+              systemctl daemon-reload
+              systemctl enable nginx-reload.path
+              systemctl start nginx-reload.path
+              echo "Automatic nginx reload configured successfully"
+            else
+              echo "Automatic nginx reload already configured"
+            fi
+            
+            # Проверка основного конфига nginx
+            MAIN_CONFIG="/etc/nginx/sites-available/automatoria.ru"
+            if [ -f "$MAIN_CONFIG" ] && ! grep -q "include /etc/nginx/sites-available/deploy/\*\.conf;" "$MAIN_CONFIG"; then
+              echo "Warning: include directive not found in $MAIN_CONFIG. Please add it manually:"
+              echo "  include /etc/nginx/sites-available/deploy/*.conf;"
+            fi
+            
+            # Логин в GitHub Container Registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Деплой Telegram Bot
+            echo "Deploying telegram-bot..."
+            docker stop automatorio-telegram-bot 2>/dev/null || true
+            docker rm automatorio-telegram-bot 2>/dev/null || true
+            docker pull ${IMAGE_NAME_LOWER}/telegram_bot:latest || true
+            IMAGE_TAG="latest"
+            if ! docker pull ${IMAGE_NAME_LOWER}/telegram_bot:latest 2>/dev/null; then
+              IMAGE_TAG="${{ github.ref_name }}-${{ github.sha }}"
+              docker pull ${IMAGE_NAME_LOWER}/telegram_bot:${IMAGE_TAG} || true
+            fi
+            docker run -d \
+              --name automatorio-telegram-bot \
+              --restart unless-stopped \
+              --network automatorio-network \
+              -e TELEGRAM_TOKEN="${{ secrets.TELEGRAM_TOKEN }}" \
+              -e OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
+              -e SITE_GENERATOR_API_URL="${{ secrets.SITE_GENERATOR_API_URL }}" \
+              ${IMAGE_NAME_LOWER}/telegram_bot:${IMAGE_TAG} || docker run -d \
+              --name automatorio-telegram-bot \
+              --restart unless-stopped \
+              --network automatorio-network \
+              -e TELEGRAM_TOKEN="${{ secrets.TELEGRAM_TOKEN }}" \
+              -e OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
+              -e SITE_GENERATOR_API_URL="${{ secrets.SITE_GENERATOR_API_URL }}" \
+              ${IMAGE_NAME_LOWER}/telegram_bot:${IMAGE_TAG}
+            
+            # Деплой Site Generator
+            echo "Deploying site-generator..."
+            docker stop site-generator 2>/dev/null || true
+            docker rm site-generator 2>/dev/null || true
+            docker pull ${IMAGE_NAME_LOWER}/site_generator:latest || true
+            IMAGE_TAG="latest"
+            if ! docker pull ${IMAGE_NAME_LOWER}/site_generator:latest 2>/dev/null; then
+              IMAGE_TAG="${{ github.ref_name }}-${{ github.sha }}"
+              docker pull ${IMAGE_NAME_LOWER}/site_generator:${IMAGE_TAG} || true
+            fi
+            docker run -d \
+              --name site-generator \
+              --restart unless-stopped \
+              --network automatorio-network \
+              -p 3000:3000 \
+              -e OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
+              -e DEPLOY_API_URL="${{ secrets.DEPLOY_API_URL }}" \
+              -e PORT=3000 \
+              ${IMAGE_NAME_LOWER}/site_generator:${IMAGE_TAG} || docker run -d \
+              --name site-generator \
+              --restart unless-stopped \
+              --network automatorio-network \
+              -p 3000:3000 \
+              -e OPENROUTER_API_KEY="${{ secrets.OPENROUTER_API_KEY }}" \
+              -e DEPLOY_API_URL="${{ secrets.DEPLOY_API_URL }}" \
+              -e PORT=3000 \
+              ${IMAGE_NAME_LOWER}/site_generator:${IMAGE_TAG}
+            
+            # Деплой Deploy API
+            echo "Deploying deploy-api..."
+            docker stop deploy-api 2>/dev/null || true
+            docker rm deploy-api 2>/dev/null || true
+            docker pull ${IMAGE_NAME_LOWER}/deploy_api:latest || true
+            IMAGE_TAG="latest"
+            if ! docker pull ${IMAGE_NAME_LOWER}/deploy_api:latest 2>/dev/null; then
+              IMAGE_TAG="${{ github.ref_name }}-${{ github.sha }}"
+              docker pull ${IMAGE_NAME_LOWER}/deploy_api:${IMAGE_TAG} || true
+            fi
+            docker run -d \
+              --name deploy-api \
+              --restart unless-stopped \
+              --pid=host \
+              --network automatorio-network \
+              -p 8000:8000 \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v /root/deploy_api/containers:/app/containers \
+              -v /etc/nginx:/etc/nginx \
+              -e DOMAIN="${{ secrets.DOMAIN }}" \
+              -e SSH_HOST="${{ secrets.SSH_HOST }}" \
+              -e SSH_USER="${{ secrets.SSH_USER }}" \
+              -e RUN_ON_SERVER=1 \
+              -e USE_HTTPS=1 \
+              ${IMAGE_NAME_LOWER}/deploy_api:${IMAGE_TAG} || docker run -d \
+              --name deploy-api \
+              --restart unless-stopped \
+              --network automatorio-network \
+              -p 8000:8000 \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v /root/deploy_api/containers:/app/containers \
+              -v /etc/nginx:/etc/nginx \
+              -e DOMAIN="${{ secrets.DOMAIN }}" \
+              -e SSH_HOST="${{ secrets.SSH_HOST }}" \
+              -e SSH_USER="${{ secrets.SSH_USER }}" \
+              -e RUN_ON_SERVER=1 \
+              -e USE_HTTPS=1 \
+              ${IMAGE_NAME_LOWER}/deploy_api:${IMAGE_TAG}
+            
+            # Создаем сеть, если её нет
+            docker network create automatorio-network 2>/dev/null || true
+            
+            # Очистка старых образов
+            docker image prune -f
+            
+            # Перезагрузка nginx
+            if command -v nginx >/dev/null 2>&1; then
+              nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || service nginx reload 2>/dev/null || true
+            fi
+            
+            echo "✅ All modules deployed successfully!"
+

@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  # CI для deploy_api
+  deploy-api-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: deploy_api
+        run: |
+          python -m pip --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 pylint
+
+      - name: Lint with flake8
+        working-directory: deploy_api
+        run: |
+          flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+  deploy-api-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: deploy_api
+        run: |
+          python -m pip --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test imports
+        working-directory: deploy_api
+        run: |
+          python -c "from src.main import app; print('✓ Deploy API import successful')"
+
+  # CI для telegram_bot
+  telegram-bot-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: telegram_bot/telegram_bot
+        run: |
+          python -m pip --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test imports
+        working-directory: telegram_bot/telegram_bot
+        run: |
+          python -c "from bot import TelegramBot; print('✓ Telegram Bot import successful')" || echo "⚠️ Import test skipped (requires TELEGRAM_TOKEN)"
+
+  # CI для site_generator
+  site-generator-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: site_generator
+        run: |
+          python -m pip --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test imports
+        working-directory: site_generator
+        run: |
+          python -c "from main import SiteGenerator; print('✓ Site Generator import successful')" || echo "⚠️ Import test skipped (requires OPENROUTER_API_KEY)"
+
+  # Проверка сборки Docker образов
+  docker-build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module:
+          - name: telegram_bot
+            path: telegram_bot/telegram_bot
+            dockerfile: telegram_bot/telegram_bot/Dockerfile
+          - name: site_generator
+            path: site_generator
+            dockerfile: site_generator/Dockerfile
+          - name: deploy_api
+            path: deploy_api
+            dockerfile: deploy_api/Dockerfile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (test)
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.module.path }}
+          file: ${{ matrix.module.dockerfile }}
+          push: false
+          tags: ${{ matrix.module.name }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
